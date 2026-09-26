@@ -1,24 +1,67 @@
+using System;
 using UnityEngine;
-using UnityEngine.InputSystem; 
+using UnityEngine.InputSystem;
 
 public class PlayerController : MonoBehaviour
 {
-    public InputAction MoveAction; 
+    public InputAction MoveAction;
+    Rigidbody2D rigidbody2d;
+    Vector2 move;
+
+    public float speed = 3.0f;
+    public int maxHealth = 5;
+    public int health { get { return currentHealth; } }
+    int currentHealth;
+
+    [Header("Invincibility")]
+    public float timeInvincible = 2.0f;
+    bool isInvincible;
+    float damageCooldown;
 
     void Start()
     {
-        MoveAction.Enable(); 
+        MoveAction.Enable();
+        rigidbody2d = GetComponent<Rigidbody2D>();
+        currentHealth = maxHealth;
     }
 
     void Update()
     {
-        Vector2 move = MoveAction.ReadValue<Vector2>();
-        Vector2 position = transform.position;
+        move = MoveAction.ReadValue<Vector2>();
 
-      
-        position.x += move.x * 3.0f * Time.deltaTime;
-        position.y += move.y * 3.0f * Time.deltaTime;
-
-        transform.position = position;
+        if (isInvincible)
+        {
+            damageCooldown -= Time.deltaTime;
+            if (damageCooldown < 0)
+            {
+                isInvincible = false;
+            }
+        }
     }
+
+    void FixedUpdate()
+    {
+        Vector2 position = (Vector2)rigidbody2d.position + move * speed * Time.deltaTime;
+        rigidbody2d.MovePosition(position);
+    }
+
+    public void ChangeHealth(int amount)
+    {
+        if (amount < 0)
+        {
+            if (isInvincible)
+            {
+                return;
+            }
+            isInvincible = true;
+            damageCooldown = timeInvincible;
+        }
+
+        currentHealth = Mathf.Clamp(currentHealth + amount, 0, maxHealth);
+        Debug.Log(currentHealth + "/" + maxHealth);
+    }
+
+    // Заглушки для демо-скриптів
+    public void PlaySound(AudioClip clip) { }
+    public event Action OnTalkedToNPC;
 }
