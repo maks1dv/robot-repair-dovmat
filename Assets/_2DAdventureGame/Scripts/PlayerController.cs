@@ -9,6 +9,11 @@ public class PlayerController : MonoBehaviour
     public int health { get { return currentHealth; } }
     private int currentHealth;
 
+    // Невразливість після удару
+    public float timeInvincible = 2.0f;
+    private bool isInvincible;
+    private float damageCooldown;
+
     // Снаряди
     public GameObject projectilePrefab;
 
@@ -51,50 +56,70 @@ public class PlayerController : MonoBehaviour
         animator.SetFloat("Look Y", lookDirection.y);
         animator.SetFloat("Speed", moveInput.magnitude);
 
+        // Відлік таймера невразливості
+        if (isInvincible)
+        {
+            damageCooldown -= Time.deltaTime;
+            if (damageCooldown < 0)
+            {
+                isInvincible = false;
+            }
+        }
+
         // Постріл на клавішу C
         if (Input.GetKeyDown(KeyCode.C))
         {
             Launch();
         }
 
-        // Взаємодія з NPC на клавішу X (Діагностичний блок)
+        // Взаємодія з NPC на клавішу X
         if (Input.GetKeyDown(KeyCode.X))
         {
-            Debug.Log("1. Клавішу X натиснуто!");
+            int characterMask = LayerMask.GetMask("Character");
 
+            // 1. Пошук променем у напрямку погляду
             RaycastHit2D hit = Physics2D.Raycast(
                 rigidbody2d.position + Vector2.up * 0.2f,
                 lookDirection,
-                2.0f,
-                LayerMask.GetMask("NPC")
+                2.5f,
+                characterMask
             );
+
+            NonPlayerCharacter character = null;
 
             if (hit.collider != null)
             {
-                Debug.Log("2. Промінь влучив у об'єкт: " + hit.collider.name);
+                character = hit.collider.GetComponent<NonPlayerCharacter>()
+                         ?? hit.collider.GetComponentInParent<NonPlayerCharacter>();
+            }
 
-                NonPlayerCharacter character = hit.collider.GetComponent<NonPlayerCharacter>();
-                if (character != null)
+            // 2. Запасний пошук у радіусі 2.0f навколо гравця
+            if (character == null)
+            {
+                Collider2D[] nearby = Physics2D.OverlapCircleAll(rigidbody2d.position, 2.0f, characterMask);
+                foreach (var col in nearby)
                 {
-                    Debug.Log("3. Скрипт NonPlayerCharacter знайдено! Відкриваємо UI...");
-                    if (UIHandler.instance != null)
-                    {
-                        UIHandler.instance.DisplayDialogue();
-                        OnTalkedToNPC?.Invoke();
-                    }
-                    else
-                    {
-                        Debug.LogError("ПОМИЛКА: UIHandler.instance дорівнює null! Перевірте об'єкт UIDocument у Hierarchy.");
-                    }
+                    character = col.GetComponent<NonPlayerCharacter>()
+                             ?? col.GetComponentInParent<NonPlayerCharacter>();
+                    if (character != null) break;
+                }
+            }
+
+            if (character != null)
+            {
+                if (Beginner2D.UIHandler.instance != null)
+                {
+                    Beginner2D.UIHandler.instance.DisplayDialogue();
+                    OnTalkedToNPC?.Invoke();
                 }
                 else
                 {
-                    Debug.LogWarning("УВАГА: Промінь влучив у об'єкт, але на ньому немає скрипта NonPlayerCharacter!");
+                    Debug.LogError("ПОМИЛКА: Beginner2D.UIHandler.instance дорівнює null!");
                 }
             }
             else
             {
-                Debug.LogWarning("УВАГА: Промінь ні у кого не влучив! (Занадто далеко або не той Layer).");
+                Debug.LogWarning("УВАГА: NPC поруч не знайдено!");
             }
         }
     }
@@ -110,11 +135,19 @@ public class PlayerController : MonoBehaviour
     {
         if (amount < 0)
         {
+            if (isInvincible)
+                return;
+
+            isInvincible = true;
+            damageCooldown = timeInvincible;
             animator.SetTrigger("Hit");
         }
 
         currentHealth = Mathf.Clamp(currentHealth + amount, 0, maxHealth);
-        Debug.Log(currentHealth + "/" + maxHealth);
+        if (Beginner2D.UIHandler.instance != null)
+        {
+            Beginner2D.UIHandler.instance.SetHealthValue(currentHealth / (float)maxHealth);
+        }
     }
 
     void Launch()

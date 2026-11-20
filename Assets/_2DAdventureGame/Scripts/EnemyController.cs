@@ -12,11 +12,34 @@ public class EnemyController : MonoBehaviour
     int direction = 1;
     bool broken = true;
 
+    // Лічильник усіх ворогів на сцені
+    private static int totalEnemies = 0;
+    private static int fixedEnemies = 0;
+    private static int lastSceneHandle = -1;
+
+    void Awake()
+    {
+        // Скидаємо лічильники при кожному запуску або перезавантаженні сцени
+        int currentScene = gameObject.scene.handle;
+        if (lastSceneHandle != currentScene)
+        {
+            totalEnemies = 0;
+            fixedEnemies = 0;
+            lastSceneHandle = currentScene;
+        }
+        totalEnemies++;
+    }
+
     void Start()
     {
         rigidbody2d = GetComponent<Rigidbody2D>();
         animator = GetComponent<Animator>();
         timer = changeTime;
+
+        if (Beginner2D.UIHandler.instance != null)
+        {
+            Beginner2D.UIHandler.instance.SetCounter(fixedEnemies, totalEnemies);
+        }
     }
 
     void Update()
@@ -72,8 +95,22 @@ public class EnemyController : MonoBehaviour
 
     public void Fix()
     {
+        if (!broken) return;
+
         broken = false;
         rigidbody2d.simulated = false;
         animator.SetTrigger("Fixed");
+
+        fixedEnemies++;
+
+        if (Beginner2D.UIHandler.instance != null)
+        {
+            Beginner2D.UIHandler.instance.SetCounter(fixedEnemies, totalEnemies);
+
+            if (fixedEnemies >= totalEnemies)
+            {
+                Beginner2D.UIHandler.instance.DisplayWinScreen();
+            }
+        }
     }
 }
