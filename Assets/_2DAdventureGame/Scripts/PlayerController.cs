@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using UnityEngine;
 
 public class PlayerController : MonoBehaviour
@@ -14,12 +15,18 @@ public class PlayerController : MonoBehaviour
     private bool isInvincible;
     private float damageCooldown;
 
-    // Снаряди
+    // Снаряди та аудіо
     public GameObject projectilePrefab;
+    public AudioClip hitSound;
+    public AudioClip throwSound;
+    public AudioClip healSound;
 
     // Компоненти та фізика
     private Rigidbody2D rigidbody2d;
     private Animator animator;
+    private AudioSource audioSource;
+    private SpriteRenderer spriteRenderer;
+    private Color defaultColor;
 
     // Напрямок руху та погляду
     private Vector2 move;
@@ -32,12 +39,17 @@ public class PlayerController : MonoBehaviour
     {
         rigidbody2d = GetComponent<Rigidbody2D>();
         animator = GetComponent<Animator>();
+        audioSource = GetComponent<AudioSource>();
+        spriteRenderer = GetComponent<SpriteRenderer>();
+        if (spriteRenderer != null)
+        {
+            defaultColor = spriteRenderer.color;
+        }
         currentHealth = maxHealth;
     }
 
     void Update()
     {
-        // Отримання введення руху
         float horizontal = Input.GetAxis("Horizontal");
         float vertical = Input.GetAxis("Vertical");
 
@@ -51,12 +63,10 @@ public class PlayerController : MonoBehaviour
 
         move = moveInput;
 
-        // Параметри анімації
         animator.SetFloat("Look X", lookDirection.x);
         animator.SetFloat("Look Y", lookDirection.y);
         animator.SetFloat("Speed", moveInput.magnitude);
 
-        // Відлік таймера невразливості
         if (isInvincible)
         {
             damageCooldown -= Time.deltaTime;
@@ -77,7 +87,6 @@ public class PlayerController : MonoBehaviour
         {
             int characterMask = LayerMask.GetMask("Character");
 
-            // 1. Пошук променем у напрямку погляду
             RaycastHit2D hit = Physics2D.Raycast(
                 rigidbody2d.position + Vector2.up * 0.2f,
                 lookDirection,
@@ -93,7 +102,6 @@ public class PlayerController : MonoBehaviour
                          ?? hit.collider.GetComponentInParent<NonPlayerCharacter>();
             }
 
-            // 2. Запасний пошук у радіусі 2.0f навколо гравця
             if (character == null)
             {
                 Collider2D[] nearby = Physics2D.OverlapCircleAll(rigidbody2d.position, 2.0f, characterMask);
@@ -112,14 +120,6 @@ public class PlayerController : MonoBehaviour
                     Beginner2D.UIHandler.instance.DisplayDialogue();
                     OnTalkedToNPC?.Invoke();
                 }
-                else
-                {
-                    Debug.LogError("ПОМИЛКА: Beginner2D.UIHandler.instance дорівнює null!");
-                }
-            }
-            else
-            {
-                Debug.LogWarning("УВАГА: NPC поруч не знайдено!");
             }
         }
     }
@@ -141,12 +141,29 @@ public class PlayerController : MonoBehaviour
             isInvincible = true;
             damageCooldown = timeInvincible;
             animator.SetTrigger("Hit");
+            PlaySound(hitSound);
+            StartCoroutine(FlashColor(Color.red));
+        }
+        else if (amount > 0)
+        {
+            PlaySound(healSound);
+            StartCoroutine(FlashColor(Color.green));
         }
 
         currentHealth = Mathf.Clamp(currentHealth + amount, 0, maxHealth);
         if (Beginner2D.UIHandler.instance != null)
         {
             Beginner2D.UIHandler.instance.SetHealthValue(currentHealth / (float)maxHealth);
+        }
+    }
+
+    IEnumerator FlashColor(Color flashColor)
+    {
+        if (spriteRenderer != null)
+        {
+            spriteRenderer.color = flashColor;
+            yield return new WaitForSeconds(0.15f);
+            spriteRenderer.color = defaultColor;
         }
     }
 
@@ -159,9 +176,14 @@ public class PlayerController : MonoBehaviour
             projectile.Launch(lookDirection, 300);
         }
         animator.SetTrigger("Launch");
+        PlaySound(throwSound);
     }
 
     public void PlaySound(AudioClip clip)
     {
+        if (audioSource != null && clip != null)
+        {
+            audioSource.PlayOneShot(clip);
+        }
     }
 }
